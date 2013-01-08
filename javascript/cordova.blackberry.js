@@ -1,6 +1,6 @@
-// commit 24d65ab645742e8360c3dd16d7a36411cc3383e0
+// commit b48c8ea049295e4425d7859c9f21d9d299ac518c
 
-// File generated at :: Thu Jan 03 2013 11:11:25 GMT-0800 (PST)
+// File generated at :: Tue Jan 08 2013 01:14:09 GMT-0500 (EST)
 
 /*
  Licensed to the Apache Software Foundation (ASF) under one
@@ -3092,8 +3092,7 @@ define("cordova/plugin/InAppBrowser", function(require, exports, module) {
 
 var exec = require('cordova/exec');
 
-function InAppBrowser()
-{
+function InAppBrowser() {
    var _channel = require('cordova/channel');
    this.channels = {
         'loadstart': _channel.create('loadstart'),
@@ -3102,44 +3101,40 @@ function InAppBrowser()
    };
 }
 
-InAppBrowser.prototype._eventHandler = function(event)
-{
+InAppBrowser.prototype._eventHandler = function(event) {
     if (event.type in this.channels) {
         this.channels[event.type].fire(event);
     }
-}
+};
 
-InAppBrowser.open = function(strUrl, strWindowName, strWindowFeatures)
-{
+InAppBrowser.open = function(strUrl, strWindowName, strWindowFeatures) {
     var iab = new InAppBrowser();
     var cb = function(eventname) {
        iab._eventHandler(eventname);
-    }
+    };
     exec(cb, null, "InAppBrowser", "open", [strUrl, strWindowName, strWindowFeatures]);
     return iab;
-}
+};
 
-InAppBrowser.prototype.close = function(eventname, f)
-{
+InAppBrowser.open._orig = window.open;
+
+InAppBrowser.prototype.close = function(eventname, f) {
     exec(null, null, "InAppBrowser", "close", []);
-}
+};
 
-InAppBrowser.prototype.addEventListener = function(eventname, f)
-{
+InAppBrowser.prototype.addEventListener = function(eventname, f) {
     if (eventname in this.channels) {
         this.channels[eventname].subscribe(f);
     }
-}
+};
 
-InAppBrowser.prototype.removeEventListener = function(eventname, f)
-{
+InAppBrowser.prototype.removeEventListener = function(eventname, f) {
     if (eventname in this.channels) {
         this.channels[eventname].unsubscribe(f);
     }
-}
+};
 
 module.exports = InAppBrowser.open;
-
 
 });
 
@@ -8668,6 +8663,65 @@ module.exports = {
 
 });
 
+// file: lib/blackberry/plugin/qnx/InAppBrowser.js
+define("cordova/plugin/qnx/InAppBrowser", function(require, exports, module) {
+
+var cordova = require('cordova'),
+    core = require('cordova/plugin/InAppBrowser');
+
+var navigate = {
+    "_blank": function (url, whitelisted) {
+        core._orig.apply(null, [url, "_blank"]);
+    },
+
+    "_self": function (url, whitelisted) {
+        if (whitelisted) {
+            window.location.href = url;
+        }
+        else {
+            core._orig.apply(null, [url, "_blank"]);
+        }
+    },
+
+    "_system": function (url, whitelisted) {
+        blackberry.invoke.invoke({
+            target: "sys.browser",
+            uri: url
+        }, function () {}, function () {});
+    }
+};
+
+
+module.exports = {
+    open: function (args, win, fail) {
+        var url = args[0],
+            target = args[1] || '_self';
+
+        switch (target) {
+            case '_self':
+            case '_system':
+            case '_blank':
+                break;
+            default:
+                target = '_blank';
+                break;
+        }
+
+        webworks.exec(function (whitelisted) {
+            navigate[target](url, whitelisted);
+        }, function (e) {
+            fail(e);
+        }, "org.apache.cordova", "isWhitelisted", [url], true);
+
+        return { "status" : cordova.callbackStatus.NO_RESULT, "message" : "" };
+    },
+    close: function (args, win, fail) {
+        return { "status" : cordova.callbackStatus.OK, "message" : "" };
+    }
+};
+
+});
+
 // file: lib/blackberry/plugin/qnx/battery.js
 define("cordova/plugin/qnx/battery", function(require, exports, module) {
 
@@ -9430,6 +9484,7 @@ var cordova = require('cordova'),
         'Notification' : require('cordova/plugin/webworks/notification'),
         'Media': require('cordova/plugin/webworks/media'),
         'File' : require('cordova/plugin/qnx/file'),
+        'InAppBrowser' : require('cordova/plugin/qnx/InAppBrowser'),
         'FileTransfer': require('cordova/plugin/qnx/fileTransfer')
     };
 
@@ -9495,6 +9550,11 @@ module.exports = {
                 cordova.fireDocumentEvent("offline");
             });
         });
+    },
+    clobbers: {
+        open: {
+            path: "cordova/plugin/InAppBrowser"
+        }
     },
     merges: {
         navigator: {
