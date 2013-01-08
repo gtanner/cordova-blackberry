@@ -24,7 +24,6 @@ module.exports = {
             success = success || noop,
             fail = fail || noop;
 
-        window.args = args;
         if (url) {
             success(whitelist.isAccessAllowed(url));
         }

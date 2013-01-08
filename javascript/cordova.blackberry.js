@@ -1,6 +1,6 @@
-// commit b48c8ea049295e4425d7859c9f21d9d299ac518c
+// commit c3f99fe6fab4b2dd63615b6fa2363e1f7afc7496
 
-// File generated at :: Tue Jan 08 2013 01:14:09 GMT-0500 (EST)
+// File generated at :: Tue Jan 08 2013 14:06:30 GMT-0500 (EST)
 
 /*
  Licensed to the Apache Software Foundation (ASF) under one
@@ -2198,7 +2198,49 @@ var File = function(name, fullPath, type, lastModifiedDate, size){
     this.type = type || null;
     this.lastModifiedDate = lastModifiedDate || null;
     this.size = size || 0;
+
+    // These store the absolute start and end for slicing the file.
+    this.start = 0;
+    this.end = this.size;
 };
+
+/**
+ * Returns a "slice" of the file. Since Cordova Files don't contain the actual
+ * content, this really returns a File with adjusted start and end.
+ * Slices of slices are supported.
+ * start {Number} The index at which to start the slice (inclusive).
+ * end {Number} The index at which to end the slice (exclusive).
+ */
+File.prototype.slice = function(start, end) {
+    if (arguments.length == 0) {
+        return this;
+    }
+
+    var size = this.end - this.start;
+    var newStart = 0;
+    var newEnd = size;
+    if (arguments.length >= 1) {
+        if (start < 0) {
+            newStart = Math.max(size + start, 0);
+        } else {
+            newStart = Math.min(size, start);
+        }
+    }
+
+    if (arguments.length >= 2) {
+        if (end < 0) {
+            newEnd = Math.max(size + end, 0);
+        } else {
+            newEnd = Math.min(end, size);
+        }
+    }
+
+    var newFile = new File(this.name, this.fullPath, this.type, this.lastModifiedData, this.size);
+    newFile.start = this.start + newStart;
+    newFile.end = this.start + newEnd;
+    return newFile;
+};
+
 
 module.exports = File;
 
@@ -2399,6 +2441,15 @@ FileReader.prototype.readAsText = function(file, encoding) {
 
     var me = this;
 
+    var execArgs = [this.fileName, enc];
+
+    // Maybe add slice parameters.
+    if (file.end < file.size) {
+        execArgs.push(file.start, file.end);
+    } else if (file.start > 0) {
+        execArgs.push(file.start);
+    }
+
     // Read file
     exec(
         // Success callback
@@ -2449,7 +2500,7 @@ FileReader.prototype.readAsText = function(file, encoding) {
             if (typeof me.onloadend === "function") {
                 me.onloadend(new ProgressEvent("loadend", {target:me}));
             }
-        }, "File", "readAsText", [this.fileName, enc]);
+        }, "File", "readAsText", execArgs);
 };
 
 
@@ -2482,6 +2533,15 @@ FileReader.prototype.readAsDataURL = function(file) {
     }
 
     var me = this;
+
+    var execArgs = [this.fileName];
+
+    // Maybe add slice parameters.
+    if (file.end < file.size) {
+        execArgs.push(file.start, file.end);
+    } else if (file.start > 0) {
+        execArgs.push(file.start);
+    }
 
     // Read file
     exec(
@@ -2532,7 +2592,7 @@ FileReader.prototype.readAsDataURL = function(file) {
             if (typeof me.onloadend === "function") {
                 me.onloadend(new ProgressEvent("loadend", {target:me}));
             }
-        }, "File", "readAsDataURL", [this.fileName]);
+        }, "File", "readAsDataURL", execArgs);
 };
 
 /**
@@ -8695,7 +8755,12 @@ var navigate = {
 module.exports = {
     open: function (args, win, fail) {
         var url = args[0],
-            target = args[1] || '_self';
+            target = args[1] || '_self',
+            a = document.createElement('a');
+
+        //Make all URLs absolute
+        a.href = url;
+        url = a.href;
 
         switch (target) {
             case '_self':
@@ -8709,9 +8774,7 @@ module.exports = {
 
         webworks.exec(function (whitelisted) {
             navigate[target](url, whitelisted);
-        }, function (e) {
-            fail(e);
-        }, "org.apache.cordova", "isWhitelisted", [url], true);
+        }, fail, "org.apache.cordova", "isWhitelisted", [url], true);
 
         return { "status" : cordova.callbackStatus.NO_RESULT, "message" : "" };
     },
